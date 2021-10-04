@@ -15,23 +15,25 @@ def qq_download_by_vid(vid, title, output_dir='.', merge=True, info_only=False):
 
     # http://v.sports.qq.com/#/cover/t0fqsm1y83r8v5j/a0026nvw5jr https://v.qq.com/x/cover/t0fqsm1y83r8v5j/a0026nvw5jr.html
     video_json = None
-    platforms = [4100201, 11]
-    for platform in platforms:
-        info_api = 'http://vv.video.qq.com/getinfo?otype=json&appver=3.2.19.333&platform={}&defnpayver=1&defn=shd&vid={}'.format(platform, vid)
-        info = get_content(info_api, headers)
-        video_json = json.loads(match1(info, r'QZOutputJson=(.*)')[:-1])
-        if not video_json.get('msg')=='cannot play outside':
-            break
+    info_api = 'http://vv.video.qq.com/getinfo?otype=json&appver=3.2.19.333&platform=11&defnpayver=1&defn=shd&vid={}'.format(vid)
+    info = get_content(info_api, headers)
+    video_json = json.loads(match1(info, r'QZOutputJson=(.*)')[:-1])
+    if video_json.get('msg') == 'cannot play outside':
+        log.e('cannot play outside')
+
     fn_pre = video_json['vl']['vi'][0]['lnk']
     title = video_json['vl']['vi'][0]['ti']
     host = video_json['vl']['vi'][0]['ul']['ui'][0]['url']
     seg_cnt = fc_cnt = video_json['vl']['vi'][0]['cl']['fc']
+    best_format_id = video_json['fl']['fi'][-1]['id']
 
     filename = video_json['vl']['vi'][0]['fn']
     if seg_cnt == 0:
         seg_cnt = 1
     else:
         fn_pre, magic_str, video_type = filename.split('.')
+        if magic_str.endswith('1') and best_format_id.endswith('9'):
+            magic_str = magic_str[:-1] + '9'
 
     part_urls= []
     total_size = 0
@@ -40,9 +42,11 @@ def qq_download_by_vid(vid, title, output_dir='.', merge=True, info_only=False):
         if fc_cnt == 0:
             # fix json parsing error
             # example:https://v.qq.com/x/page/w0674l9yrrh.html
-            part_format_id = video_json['vl']['vi'][0]['cl']['keyid'].split('.')[-1]
+            part_format_id = best_format_id
         else:
             part_format_id = video_json['vl']['vi'][0]['cl']['ci'][part - 1]['keyid'].split('.')[1]
+            if part_format_id.endswith('1') and best_format_id.endswith('9'):
+                part_format_id = part_format_id[:-1] + '9'
             filename = '.'.join([fn_pre, magic_str, str(part), video_type])
 
         key_api = "http://vv.video.qq.com/getkey?otype=json&platform=11&format={}&vid={}&filename={}&appver=3.2.19.333".format(part_format_id, vid, filename)
